@@ -20,7 +20,7 @@ function parseAccountName(): string {
       if (local) return local
     } catch {}
   }
-  return 'default'
+  return ''
 }
 
 const ACCOUNT_NAME = parseAccountName()

@@ -35,10 +35,18 @@ function parseAccountName(): string {
       if (local) return local
     } catch {}
   }
-  return 'default'
+  // No fallback — must be explicitly configured
+  return ''
 }
 
 const ACCOUNT_NAME = parseAccountName()
+if (!ACCOUNT_NAME) {
+  process.stderr.write('wechat channel: no account configured.\n')
+  process.stderr.write('  Set WECHAT_ACCOUNT env var, or create .wechat-account in your project dir.\n')
+  process.stderr.write('  Run /wechat:configure <name> to set up.\n')
+  // Keep process alive so Claude Code doesn't show error, just wait
+  await new Promise(() => {})
+}
 const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
 const STATE_DIR = join(ACCOUNTS_ROOT, ACCOUNT_NAME)
 const ACCOUNT_FILE = join(STATE_DIR, 'account.json')
