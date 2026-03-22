@@ -12,7 +12,12 @@ import { renameSync } from 'fs'
 function parseAccountName(): string {
   const idx = process.argv.indexOf('--account')
   if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  return process.env.WECHAT_ACCOUNT ?? 'default'
+  if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
+  try {
+    const local = readFileSync(join(process.cwd(), '.wechat-account'), 'utf8').trim()
+    if (local) return local
+  } catch {}
+  return 'default'
 }
 
 const ACCOUNT_NAME = parseAccountName()

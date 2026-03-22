@@ -48,9 +48,12 @@ Arguments passed: `$ARGUMENTS`
    bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts --account <account-name>
    ```
 
-3. **After success** — tell the user:
-   *"WeChat account '<account-name>' connected!"*
-   *"To use this account, start Claude Code with: `WECHAT_ACCOUNT=<account-name> claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat`"*
+3. **After success** — write the account name to `.wechat-account` in the current working directory:
+   ```
+   echo "<account-name>" > .wechat-account
+   ```
+   Then tell the user:
+   *"WeChat account '<account-name>' connected! This directory is now bound to this account. Restart Claude Code to activate."*
 
 ### `list` — list all accounts
 
@@ -82,20 +85,20 @@ Confirm: *"Reset complete. Run /wechat:configure to start fresh."*
 
 ## Multi-account usage
 
-Each Claude Code instance can use a different WeChat account:
+Each Claude Code instance can use a different WeChat account. Account is resolved in order:
+
+1. `--account <name>` CLI arg (server.ts / test-login.ts)
+2. `WECHAT_ACCOUNT` env var
+3. `.wechat-account` file in current working directory
+4. Falls back to `default`
+
+**Easiest way**: run `/wechat:configure <name>` in a project directory. It writes `.wechat-account`, and future launches from that directory auto-use that account.
 
 ```bash
-# Instance 1 — default account (no env var needed)
-claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
-
-# Instance 2 — named account "work"
-WECHAT_ACCOUNT=work claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
-
-# Instance 3 — named account "personal"
-WECHAT_ACCOUNT=personal claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
+# Different projects, different WeChat accounts — no env vars needed
+cd ~/project-a && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
+cd ~/project-b && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
 ```
-
-The server.ts also accepts `--account <name>` as a CLI argument.
 
 ## Implementation notes
 

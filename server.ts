@@ -22,9 +22,17 @@ import { join } from 'path'
 // ── Config ──────────────────────────────────────────────────────────────────
 
 function parseAccountName(): string {
+  // 1. CLI arg: --account <name>
   const idx = process.argv.indexOf('--account')
   if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  return process.env.WECHAT_ACCOUNT ?? 'default'
+  // 2. Env var
+  if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
+  // 3. Workspace-local .wechat-account file (auto-created by /wechat:configure)
+  try {
+    const local = readFileSync(join(process.cwd(), '.wechat-account'), 'utf8').trim()
+    if (local) return local
+  } catch {}
+  return 'default'
 }
 
 const ACCOUNT_NAME = parseAccountName()
