@@ -9,7 +9,15 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { renameSync } from 'fs'
 
-const STATE_DIR = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
+function parseAccountName(): string {
+  const idx = process.argv.indexOf('--account')
+  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
+  return process.env.WECHAT_ACCOUNT ?? 'default'
+}
+
+const ACCOUNT_NAME = parseAccountName()
+const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
+const STATE_DIR = ACCOUNT_NAME === 'default' ? ACCOUNTS_ROOT : join(ACCOUNTS_ROOT, ACCOUNT_NAME)
 const ACCOUNT_FILE = join(STATE_DIR, 'account.json')
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const DEFAULT_BOT_TYPE = '3'
