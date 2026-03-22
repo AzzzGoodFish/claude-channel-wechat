@@ -13,7 +13,7 @@ function parseAccountName(): string {
   const idx = process.argv.indexOf('--account')
   if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
   if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
-  const projectDir = process.env.CLAUDE_PROJECT_DIR
+  const projectDir = process.env.CLAUDE_PROJECT_ROOT
   if (projectDir) {
     try {
       const local = readFileSync(join(projectDir, '.wechat-account'), 'utf8').trim()
