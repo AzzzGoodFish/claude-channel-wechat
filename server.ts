@@ -89,7 +89,7 @@ type GetUpdatesResp = {
 // ── iLink API Client ────────────────────────────────────────────────────────
 
 function buildBaseInfo(): BaseInfo {
-  return { channel_version: '0.0.1' }
+  return { channel_version: '0.0.2' }
 }
 
 function randomWechatUin(): string {
@@ -477,7 +477,7 @@ function stripMarkdown(text: string): string {
 // ── MCP Server ──────────────────────────────────────────────────────────────
 
 const mcp = new Server(
-  { name: 'wechat', version: '0.0.1' },
+  { name: 'wechat', version: '0.0.2' },
   {
     capabilities: { tools: {}, experimental: { 'claude/channel': {} } },
     instructions: [
