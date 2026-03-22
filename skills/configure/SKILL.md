@@ -15,6 +15,7 @@ allowed-tools:
 # /wechat:configure — WeChat Channel Setup (Multi-Account)
 
 Runs QR code login for the WeChat channel. Supports multiple accounts.
+All account data is stored under `~/.claude/channels/wechat/<account-name>/`.
 
 Arguments passed: `$ARGUMENTS`
 
@@ -22,25 +23,10 @@ Arguments passed: `$ARGUMENTS`
 
 ## Dispatch on arguments
 
-### No args — status of current account and login
-
-1. **Check status** — read `~/.claude/channels/wechat/account.json` (default account).
-   - If exists: show botId (masked), userId, savedAt. Ask if they want to
-     re-login.
-   - If missing: proceed to login.
-
-2. **Login** — run the login script:
-   ```
-   bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts
-   ```
-
-3. **After success** — tell the user:
-   *"WeChat connected! Send a message from WeChat to test."*
-
-### `<account-name>` — login a specific account
+### `<account-name>` — login a named account (REQUIRED)
 
 1. **Check status** — read `~/.claude/channels/wechat/<account-name>/account.json`.
-   - If exists: show status. Ask if they want to re-login.
+   - If exists: show botId (masked), userId, savedAt. Ask if they want to re-login.
    - If missing: proceed to login.
 
 2. **Login** — run login with account name:
@@ -48,70 +34,59 @@ Arguments passed: `$ARGUMENTS`
    bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts --account <account-name>
    ```
 
-3. **After success** — write the account name to `.wechat-account` in the current working directory:
+3. **After success** — write `.wechat-account` to the current project dir:
    ```
    echo "<account-name>" > .wechat-account
    ```
-   Then tell the user:
-   *"WeChat account '<account-name>' connected! This directory is now bound to this account. Restart Claude Code to activate."*
+   Tell the user: *"WeChat account '<account-name>' connected! Restart Claude Code to activate."*
+
+### No args — prompt the user
+
+Tell the user they must specify an account name:
+*"请指定账号名，例如: /wechat:configure work"*
+
+Then list existing accounts (see `list` below).
 
 ### `list` — list all accounts
 
-1. List all directories under `~/.claude/channels/wechat/` that contain `account.json`.
-2. Also check `~/.claude/channels/wechat/account.json` for the default account.
-3. Show: account name, botId (masked), login time.
-
-### `status` — check current account state
-
-Read and display `~/.claude/channels/wechat/account.json` (or the account specified by `WECHAT_ACCOUNT` env var at `~/.claude/channels/wechat/$WECHAT_ACCOUNT/account.json`). Show:
-- Account name (default or from env)
-- Login state (configured / not configured)
+Run: `ls ~/.claude/channels/wechat/`
+For each subdirectory that contains `account.json`, show:
+- Account name (directory name)
 - botId (first 12 chars + `...`)
-- Last login time
+- Login time
 
-### `logout` or `logout <account-name>` — remove credentials
+### `status` — check current account
 
-For default: delete `~/.claude/channels/wechat/account.json` and `sync-buf.txt`.
-For named: delete `~/.claude/channels/wechat/<account-name>/account.json` and `sync-buf.txt`.
-Confirm: *"Logged out. Run /wechat:configure to re-login."*
+1. Read `.wechat-account` from the current project dir to get account name.
+2. If not found, tell user no account bound to this directory.
+3. If found, read `~/.claude/channels/wechat/<account-name>/account.json` and show status.
 
-### `reset` or `reset <account-name>` — full reset
+### `logout <account-name>` — remove credentials
 
-For default: delete `~/.claude/channels/wechat/account.json` and `sync-buf.txt`.
-For named: delete entire `~/.claude/channels/wechat/<account-name>/` directory.
-Confirm: *"Reset complete. Run /wechat:configure to start fresh."*
+1. Delete `~/.claude/channels/wechat/<account-name>/account.json`
+2. Delete `~/.claude/channels/wechat/<account-name>/sync-buf.txt`
+3. Confirm: *"Logged out. Run /wechat:configure <account-name> to re-login."*
+
+### `reset <account-name>` — full reset
+
+1. Delete entire `~/.claude/channels/wechat/<account-name>/` directory.
+2. Confirm: *"Reset complete."*
 
 ---
 
 ## Multi-account usage
 
-Each Claude Code instance can use a different WeChat account. Account is resolved in order:
-
-1. `--account <name>` CLI arg (server.ts / test-login.ts)
-2. `WECHAT_ACCOUNT` env var
-3. `.wechat-account` file in current working directory
-4. Falls back to `default`
-
-**Usage**: run `/wechat:configure <name>` — it writes `.wechat-account` to the project dir. The MCP server reads it via `CLAUDE_PROJECT_DIR` automatically. No env vars needed.
+Account is auto-detected from `.wechat-account` file in project dir (via `CLAUDE_PROJECT_ROOT`).
 
 ```bash
-# Just start Claude Code in any project dir — account auto-detected from .wechat-account
+# Different projects, different WeChat accounts — zero config after initial setup
 cd ~/project-a && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
 cd ~/project-b && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
 ```
-
-Account resolution order:
-1. `--account <name>` CLI arg
-2. `WECHAT_ACCOUNT` env var
-3. `.wechat-account` file in project dir (via `CLAUDE_PROJECT_DIR`)
-4. Falls back to `default`
-
-All account data stored under `~/.claude/channels/wechat/<account-name>/`.
 
 ## Implementation notes
 
 - The login script (`test-login.ts`) MUST run with `bun`.
 - `--account <name>` stores credentials in `~/.claude/channels/wechat/<name>/`.
-- Default account (no name) uses `~/.claude/channels/wechat/` directly for backward compatibility.
-- The MCP server detects account.json automatically — no restart needed after login.
-- `WECHAT_ACCOUNT` env var is read by the MCP server subprocess at startup.
+- There is NO root-level account.json. Every account lives in a named subdirectory.
+- The MCP server reads `.wechat-account` from `CLAUDE_PROJECT_ROOT`. If not found, it waits.
