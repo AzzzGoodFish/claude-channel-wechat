@@ -56,11 +56,11 @@ Claude Code: [读取文件、分析代码、通过 reply 工具回复]
 Session 过期后需要重新扫码：
 
 ```bash
-# 删除旧凭证
-rm ~/.claude/channels/wechat/account.json
-
 # 在 Claude Code 中重新扫码
 /wechat:configure
+
+# 或者完全重置后重新扫码
+/wechat:configure reset
 ```
 
 ## 工作原理
@@ -92,11 +92,32 @@ rm ~/.claude/channels/wechat/account.json
 
 ## 状态文件
 
+凭证按项目目录隔离，路径通过 `CLAUDE_PROJECT_ROOT` 的 SHA256 前 12 位哈希决定：
+
 ```
-~/.claude/channels/wechat/
-├── account.json     # 登录凭证（bot token, base URL, bot ID）
+~/.claude/channels/wechat/<path-hash>/
+├── accounts.json    # 登录凭证（支持多账号，含 default 字段）
 └── sync-buf.txt     # 消息同步游标（断点续传）
 ```
+
+`accounts.json` 格式：
+
+```json
+{
+  "default": "ilink_user_id_xxx",
+  "accounts": {
+    "ilink_user_id_xxx": {
+      "token": "...",
+      "baseUrl": "https://ilinkai.weixin.qq.com",
+      "botId": "...",
+      "userId": "ilink_user_id_xxx",
+      "savedAt": "2025-01-01T00:00:00.000Z"
+    }
+  }
+}
+```
+
+设置 `WECHAT_USER_ID` 环境变量可覆盖默认账号。
 
 ## 限制
 

@@ -14,36 +14,22 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { randomBytes, randomUUID } from 'crypto'
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { createHash, randomBytes, randomUUID } from 'crypto'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-function parseAccountName(): string {
-  // 1. CLI arg: --account <name>
-  const idx = process.argv.indexOf('--account')
-  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  // 2. Env var
-  if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
-  // 3. .wechat-account file in project dir (CLAUDE_PROJECT_ROOT set by Claude Code)
-  const projectDir = process.env.CLAUDE_PROJECT_ROOT
-  if (projectDir) {
-    try {
-      const local = readFileSync(join(projectDir, '.wechat-account'), 'utf8').trim()
-      if (local) return local
-    } catch {}
-  }
-  // No fallback — must be explicitly configured
-  return ''
+function pathHash(dir: string): string {
+  return createHash('sha256').update(dir).digest('hex').slice(0, 12)
 }
 
-const ACCOUNT_NAME = parseAccountName()
+const PROJECT_ROOT = process.env.CLAUDE_PROJECT_ROOT ?? ''
 const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
-const STATE_DIR = join(ACCOUNTS_ROOT, ACCOUNT_NAME)
-const ACCOUNT_FILE = join(STATE_DIR, 'account.json')
-const SYNC_BUF_FILE = join(STATE_DIR, 'sync-buf.txt')
+const STATE_DIR = PROJECT_ROOT ? join(ACCOUNTS_ROOT, pathHash(PROJECT_ROOT)) : ''
+const ACCOUNTS_FILE = STATE_DIR ? join(STATE_DIR, 'accounts.json') : ''
+const SYNC_BUF_FILE = STATE_DIR ? join(STATE_DIR, 'sync-buf.txt') : ''
 
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const DEFAULT_BOT_TYPE = '3'
@@ -280,18 +266,37 @@ type AccountData = {
   savedAt: string
 }
 
-function loadAccount(): AccountData | null {
+type AccountsFile = {
+  default: string
+  accounts: Record<string, AccountData>
+}
+
+function loadAccountsFile(): AccountsFile | null {
+  if (!ACCOUNTS_FILE) return null
   try {
-    return JSON.parse(readFileSync(ACCOUNT_FILE, 'utf8')) as AccountData
+    return JSON.parse(readFileSync(ACCOUNTS_FILE, 'utf8')) as AccountsFile
   } catch { return null }
 }
 
+function loadAccount(): AccountData | null {
+  const userId = process.env.WECHAT_USER_ID
+  const file = loadAccountsFile()
+  if (!file) return null
+  const key = userId || file.default
+  return key ? (file.accounts[key] ?? null) : null
+}
+
 function saveAccount(data: AccountData): void {
+  if (!STATE_DIR || !ACCOUNTS_FILE) throw new Error('CLAUDE_PROJECT_ROOT not set')
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 })
-  const tmp = ACCOUNT_FILE + '.tmp'
-  writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 })
+  const file = loadAccountsFile() ?? { default: '', accounts: {} }
+  const key = data.userId ?? data.botId
+  file.accounts[key] = data
+  if (!file.default) file.default = key
+  const tmp = ACCOUNTS_FILE + '.tmp'
+  writeFileSync(tmp, JSON.stringify(file, null, 2), { mode: 0o600 })
   const { renameSync } = require('fs')
-  renameSync(tmp, ACCOUNT_FILE)
+  renameSync(tmp, ACCOUNTS_FILE)
 }
 
 async function doQRLogin(baseUrl: string): Promise<AccountData> {
@@ -587,41 +592,27 @@ process.on('uncaughtException', err => {
 
 let account: AccountData | null = null
 
-if (!ACCOUNT_NAME) {
-  process.stderr.write('wechat channel: no account configured.\n')
-  process.stderr.write('  Run /wechat:configure <name> to set up.\n')
-  process.stderr.write('  Waiting for .wechat-account file...\n')
-  // Poll until .wechat-account appears or account.json shows up
-  while (!shuttingDown) {
-    const name = parseAccountName()
-    if (name) {
-      // Re-derive STATE_DIR at runtime is tricky, so just exit and let Claude Code restart
-      process.stderr.write(`wechat channel: detected account "${name}", restarting...\n`)
-      process.exit(0)
-    }
-    await new Promise(r => setTimeout(r, 3000))
-  }
-  process.exit(0)
+if (!STATE_DIR) {
+  process.stderr.write('wechat channel: CLAUDE_PROJECT_ROOT not set. Must run inside Claude Code.\n')
+  process.exit(1)
 }
 
 account = loadAccount()
 
 if (!account) {
-  process.stderr.write(
-    `wechat channel [${ACCOUNT_NAME}]: no account.json found. Run /wechat:configure ${ACCOUNT_NAME} to scan QR code.\n` +
-    `wechat channel [${ACCOUNT_NAME}]: waiting for account.json...\n`,
-  )
+  process.stderr.write('wechat channel: no account found. Run /wechat:configure to scan QR code.\n')
+  process.stderr.write(`wechat channel: waiting for accounts.json in ${STATE_DIR}...\n`)
   while (!account && !shuttingDown) {
     await new Promise(r => setTimeout(r, 3000))
     account = loadAccount()
   }
   if (!account) process.exit(0)
-  process.stderr.write(`wechat channel [${ACCOUNT_NAME}]: account.json detected!\n`)
+  process.stderr.write('wechat channel: account detected!\n')
 }
 
-process.stderr.write(`wechat channel [${ACCOUNT_NAME}]: logged in as botId=${account.botId}, owner=${account.userId ?? 'unknown'}\n`)
-process.stderr.write(`wechat channel [${ACCOUNT_NAME}]: state dir: ${STATE_DIR}\n`)
-process.stderr.write(`wechat channel [${ACCOUNT_NAME}]: starting long-poll...\n`)
+process.stderr.write(`wechat channel: logged in as botId=${account.botId}, owner=${account.userId ?? 'unknown'}\n`)
+process.stderr.write(`wechat channel: state dir: ${STATE_DIR}\n`)
+process.stderr.write('wechat channel: starting long-poll...\n')
 
 // ── Message Loop ────────────────────────────────────────────────────────────
 

@@ -12,10 +12,10 @@ allowed-tools:
   - Bash(cat *)
 ---
 
-# /wechat:configure — WeChat Channel Setup (Multi-Account)
+# /wechat:configure — WeChat Channel Setup
 
-Runs QR code login for the WeChat channel. Supports multiple accounts.
-All account data is stored under `~/.claude/channels/wechat/<account-name>/`.
+Runs QR code login for the WeChat channel.
+Credentials are stored in `~/.claude/channels/wechat/<path-hash>/accounts.json`, keyed by project directory.
 
 Arguments passed: `$ARGUMENTS`
 
@@ -23,70 +23,68 @@ Arguments passed: `$ARGUMENTS`
 
 ## Dispatch on arguments
 
-### `<account-name>` — login a named account (REQUIRED)
+### No args (default) — login
 
-1. **Check status** — read `~/.claude/channels/wechat/<account-name>/account.json`.
-   - If exists: show botId (masked), userId, savedAt. Ask if they want to re-login.
-   - If missing: proceed to login.
-
-2. **Login** — run login with account name:
+1. **Run login**:
    ```
-   bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts --account <account-name>
+   bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts --project-root ${CLAUDE_PROJECT_ROOT}
    ```
 
-3. **After success** — write `.wechat-account` to the current project dir:
-   ```
-   echo "<account-name>" > .wechat-account
-   ```
-   Tell the user: *"WeChat account '<account-name>' connected! Restart Claude Code to activate."*
+2. **After success** — tell the user: *"WeChat connected! Restart Claude Code to activate."*
 
-### No args — prompt the user
+### `list` — list all accounts for this project
 
-Tell the user they must specify an account name:
-*"请指定账号名，例如: /wechat:configure work"*
-
-Then list existing accounts (see `list` below).
-
-### `list` — list all accounts
-
-Run: `ls ~/.claude/channels/wechat/`
-For each subdirectory that contains `account.json`, show:
-- Account name (directory name)
-- botId (first 12 chars + `...`)
-- Login time
+1. Compute path hash from `${CLAUDE_PROJECT_ROOT}`.
+2. Read `~/.claude/channels/wechat/<path-hash>/accounts.json`.
+3. For each account, show:
+   - User ID (key)
+   - botId (first 12 chars + `...`)
+   - Login time
+   - Whether it's the default
 
 ### `status` — check current account
 
-1. Read `.wechat-account` from the current project dir to get account name.
-2. If not found, tell user no account bound to this directory.
-3. If found, read `~/.claude/channels/wechat/<account-name>/account.json` and show status.
+1. Read `~/.claude/channels/wechat/<path-hash>/accounts.json`.
+2. Show the default account's info (botId, userId, savedAt).
+3. If no accounts.json found, tell user to run `/wechat:configure`.
 
-### `logout <account-name>` — remove credentials
+### `switch <user_id>` — change default account
 
-1. Delete `~/.claude/channels/wechat/<account-name>/account.json`
-2. Delete `~/.claude/channels/wechat/<account-name>/sync-buf.txt`
-3. Confirm: *"Logged out. Run /wechat:configure <account-name> to re-login."*
+1. Read `~/.claude/channels/wechat/<path-hash>/accounts.json`.
+2. Set `default` to `<user_id>`.
+3. Write back. Confirm: *"Default switched. Restart Claude Code to activate."*
 
-### `reset <account-name>` — full reset
+### `logout [user_id]` — remove credentials
 
-1. Delete entire `~/.claude/channels/wechat/<account-name>/` directory.
+1. If `user_id` given, remove that entry from `accounts.json`.
+2. If no `user_id`, remove the default account.
+3. If the removed account was the default, clear the `default` field.
+4. Confirm: *"Logged out. Run /wechat:configure to re-login."*
+
+### `reset` — full reset for this project
+
+1. Delete entire `~/.claude/channels/wechat/<path-hash>/` directory.
 2. Confirm: *"Reset complete."*
 
 ---
 
-## Multi-account usage
+## How path-hash works
 
-Account is auto-detected from `.wechat-account` file in project dir (via `CLAUDE_PROJECT_ROOT`).
-
-```bash
-# Different projects, different WeChat accounts — zero config after initial setup
-cd ~/project-a && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
-cd ~/project-b && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
+```typescript
+import { createHash } from 'crypto'
+function pathHash(dir: string): string {
+  return createHash('sha256').update(dir).digest('hex').slice(0, 12)
+}
+// pathHash('/home/fish/project-a') → 'a1b2c3d4e5f6'
 ```
+
+The project root (`CLAUDE_PROJECT_ROOT`) is hashed to a 12-char hex string. This means:
+- Different projects get separate credential stores
+- No files pollute the project directory
+- Moving a project directory invalidates the hash (re-scan needed)
 
 ## Implementation notes
 
 - The login script (`test-login.ts`) MUST run with `bun`.
-- `--account <name>` stores credentials in `~/.claude/channels/wechat/<name>/`.
-- There is NO root-level account.json. Every account lives in a named subdirectory.
-- The MCP server reads `.wechat-account` from `CLAUDE_PROJECT_ROOT`. If not found, it waits.
+- `--project-root` tells the script which directory to hash.
+- `WECHAT_USER_ID` env var overrides the default account selection at runtime.

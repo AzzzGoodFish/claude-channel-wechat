@@ -1,32 +1,36 @@
 #!/usr/bin/env bun
 /**
- * Test script: QR code login only, no MCP server.
- * Run: bun test-login.ts
+ * QR code login script.
+ * Run: bun test-login.ts [--project-root <dir>]
+ *
+ * Saves credentials to ~/.claude/channels/wechat/<path-hash>/accounts.json
+ * where <path-hash> is derived from the project root directory.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { createHash } from 'crypto'
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { renameSync } from 'fs'
 
-function parseAccountName(): string {
-  const idx = process.argv.indexOf('--account')
-  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
-  const projectDir = process.env.CLAUDE_PROJECT_ROOT
-  if (projectDir) {
-    try {
-      const local = readFileSync(join(projectDir, '.wechat-account'), 'utf8').trim()
-      if (local) return local
-    } catch {}
-  }
-  return ''
+function pathHash(dir: string): string {
+  return createHash('sha256').update(dir).digest('hex').slice(0, 12)
 }
 
-const ACCOUNT_NAME = parseAccountName()
+function parseProjectRoot(): string {
+  const idx = process.argv.indexOf('--project-root')
+  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
+  return process.env.CLAUDE_PROJECT_ROOT ?? ''
+}
+
+const PROJECT_ROOT = parseProjectRoot()
+if (!PROJECT_ROOT) {
+  console.error('❌ 必须指定 --project-root 或设置 CLAUDE_PROJECT_ROOT')
+  process.exit(1)
+}
+
 const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
-const STATE_DIR = join(ACCOUNTS_ROOT, ACCOUNT_NAME)
-const ACCOUNT_FILE = join(STATE_DIR, 'account.json')
+const STATE_DIR = join(ACCOUNTS_ROOT, pathHash(PROJECT_ROOT))
+const ACCOUNTS_FILE = join(STATE_DIR, 'accounts.json')
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const DEFAULT_BOT_TYPE = '3'
 const LONG_POLL_TIMEOUT_MS = 35_000
@@ -46,6 +50,11 @@ type AccountData = {
   botId: string
   userId?: string
   savedAt: string
+}
+
+type AccountsFile = {
+  default: string
+  accounts: Record<string, AccountData>
 }
 
 async function fetchQRCode(apiBaseUrl: string): Promise<QRCodeResponse> {
@@ -74,6 +83,23 @@ async function pollQRStatus(apiBaseUrl: string, qrcode: string): Promise<StatusR
     if (err instanceof Error && err.name === 'AbortError') return { status: 'wait' }
     throw err
   }
+}
+
+function loadAccountsFile(): AccountsFile | null {
+  try {
+    return JSON.parse(readFileSync(ACCOUNTS_FILE, 'utf8')) as AccountsFile
+  } catch { return null }
+}
+
+function saveToAccountsFile(data: AccountData): void {
+  mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 })
+  const file = loadAccountsFile() ?? { default: '', accounts: {} }
+  const key = data.userId ?? data.botId
+  file.accounts[key] = data
+  if (!file.default) file.default = key
+  const tmp = ACCOUNTS_FILE + '.tmp'
+  writeFileSync(tmp, JSON.stringify(file, null, 2), { mode: 0o600 })
+  renameSync(tmp, ACCOUNTS_FILE)
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
@@ -128,16 +154,15 @@ while (Date.now() < deadline) {
         userId: status.ilink_user_id,
         savedAt: new Date().toISOString(),
       }
-      mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 })
-      const tmp = ACCOUNT_FILE + '.tmp'
-      writeFileSync(tmp, JSON.stringify(account, null, 2), { mode: 0o600 })
-      renameSync(tmp, ACCOUNT_FILE)
+      saveToAccountsFile(account)
 
+      const key = account.userId ?? account.botId
       console.log(`\n✅ 登录成功！`)
-      console.log(`   botId:  ${account.botId}`)
-      console.log(`   userId: ${account.userId ?? 'unknown'}`)
+      console.log(`   account: ${key}`)
+      console.log(`   botId:   ${account.botId}`)
+      console.log(`   userId:  ${account.userId ?? 'unknown'}`)
       console.log(`   baseUrl: ${account.baseUrl}`)
-      console.log(`   saved to: ${ACCOUNT_FILE}`)
+      console.log(`   saved to: ${ACCOUNTS_FILE}`)
       process.exit(0)
     }
   }
