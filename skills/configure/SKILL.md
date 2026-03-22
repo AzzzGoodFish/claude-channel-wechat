@@ -32,7 +32,7 @@ Arguments passed: `$ARGUMENTS`
 
 2. **Login** — run the login script interactively:
    ```
-   bun /Users/jax/claude-channel-wechat/test-login.ts
+   bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts
    ```
    This will:
    - Fetch a QR code from Tencent's iLink API
