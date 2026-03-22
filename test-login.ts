@@ -13,16 +13,12 @@ function parseAccountName(): string {
   const idx = process.argv.indexOf('--account')
   if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
   if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
-  try {
-    const local = readFileSync(join(process.cwd(), '.wechat-account'), 'utf8').trim()
-    if (local) return local
-  } catch {}
   return 'default'
 }
 
 const ACCOUNT_NAME = parseAccountName()
 const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
-const STATE_DIR = ACCOUNT_NAME === 'default' ? ACCOUNTS_ROOT : join(ACCOUNTS_ROOT, ACCOUNT_NAME)
+const STATE_DIR = join(ACCOUNTS_ROOT, ACCOUNT_NAME)
 const ACCOUNT_FILE = join(STATE_DIR, 'account.json')
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const DEFAULT_BOT_TYPE = '3'

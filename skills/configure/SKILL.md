@@ -92,13 +92,18 @@ Each Claude Code instance can use a different WeChat account. Account is resolve
 3. `.wechat-account` file in current working directory
 4. Falls back to `default`
 
-**Easiest way**: run `/wechat:configure <name>` in a project directory. It writes `.wechat-account`, and future launches from that directory auto-use that account.
+**Usage**: set `WECHAT_ACCOUNT` when starting Claude Code. Each instance uses a different account.
 
 ```bash
-# Different projects, different WeChat accounts — no env vars needed
-cd ~/project-a && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
-cd ~/project-b && claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
+# Default account
+WECHAT_ACCOUNT=default claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
+
+# Named accounts
+WECHAT_ACCOUNT=work claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
+WECHAT_ACCOUNT=personal claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
 ```
+
+All account data stored under `~/.claude/channels/wechat/<account-name>/`.
 
 ## Implementation notes
 
