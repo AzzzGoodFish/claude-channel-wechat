@@ -1,35 +1,16 @@
 #!/usr/bin/env bun
 /**
  * QR code login script.
- * Run: bun test-login.ts [--project-root <dir>]
+ * Run: bun test-login.ts
  *
- * Saves credentials to ~/.claude/channels/wechat/<path-hash>/accounts.json
- * where <path-hash> is derived from the project root directory.
+ * Saves credentials to ~/.claude/channels/wechat/accounts.json
  */
 
-import { createHash } from 'crypto'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
-function pathHash(dir: string): string {
-  return createHash('sha256').update(dir).digest('hex').slice(0, 12)
-}
-
-function parseProjectRoot(): string {
-  const idx = process.argv.indexOf('--project-root')
-  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  return process.env.CLAUDE_PROJECT_ROOT ?? ''
-}
-
-const PROJECT_ROOT = parseProjectRoot()
-if (!PROJECT_ROOT) {
-  console.error('❌ 必须指定 --project-root 或设置 CLAUDE_PROJECT_ROOT')
-  process.exit(1)
-}
-
-const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
-const STATE_DIR = join(ACCOUNTS_ROOT, pathHash(PROJECT_ROOT))
+const STATE_DIR = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
 const ACCOUNTS_FILE = join(STATE_DIR, 'accounts.json')
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const DEFAULT_BOT_TYPE = '3'

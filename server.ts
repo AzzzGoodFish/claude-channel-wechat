@@ -14,22 +14,16 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { createHash, randomBytes, randomUUID } from 'crypto'
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { randomBytes, randomUUID } from 'crypto'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-function pathHash(dir: string): string {
-  return createHash('sha256').update(dir).digest('hex').slice(0, 12)
-}
-
-const PROJECT_ROOT = process.env.CLAUDE_PROJECT_ROOT ?? ''
-const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
-const STATE_DIR = PROJECT_ROOT ? join(ACCOUNTS_ROOT, pathHash(PROJECT_ROOT)) : ''
-const ACCOUNTS_FILE = STATE_DIR ? join(STATE_DIR, 'accounts.json') : ''
-const SYNC_BUF_FILE = STATE_DIR ? join(STATE_DIR, 'sync-buf.txt') : ''
+const STATE_DIR = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
+const ACCOUNTS_FILE = join(STATE_DIR, 'accounts.json')
+const SYNC_BUF_FILE = join(STATE_DIR, 'sync-buf.txt')
 
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com'
 const DEFAULT_BOT_TYPE = '3'
@@ -89,7 +83,7 @@ type GetUpdatesResp = {
 // ── iLink API Client ────────────────────────────────────────────────────────
 
 function buildBaseInfo(): BaseInfo {
-  return { channel_version: '0.0.2' }
+  return { channel_version: '0.0.3' }
 }
 
 function randomWechatUin(): string {
@@ -272,7 +266,6 @@ type AccountsFile = {
 }
 
 function loadAccountsFile(): AccountsFile | null {
-  if (!ACCOUNTS_FILE) return null
   try {
     return JSON.parse(readFileSync(ACCOUNTS_FILE, 'utf8')) as AccountsFile
   } catch { return null }
@@ -287,7 +280,6 @@ function loadAccount(): AccountData | null {
 }
 
 function saveAccount(data: AccountData): void {
-  if (!STATE_DIR || !ACCOUNTS_FILE) throw new Error('CLAUDE_PROJECT_ROOT not set')
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 })
   const file = loadAccountsFile() ?? { default: '', accounts: {} }
   const key = data.userId ?? data.botId
@@ -477,7 +469,7 @@ function stripMarkdown(text: string): string {
 // ── MCP Server ──────────────────────────────────────────────────────────────
 
 const mcp = new Server(
-  { name: 'wechat', version: '0.0.2' },
+  { name: 'wechat', version: '0.0.3' },
   {
     capabilities: { tools: {}, experimental: { 'claude/channel': {} } },
     instructions: [
@@ -591,11 +583,6 @@ process.on('uncaughtException', err => {
 // ── Wait for Login ──────────────────────────────────────────────────────────
 
 let account: AccountData | null = null
-
-if (!STATE_DIR) {
-  process.stderr.write('wechat channel: CLAUDE_PROJECT_ROOT not set. Must run inside Claude Code.\n')
-  process.exit(1)
-}
 
 account = loadAccount()
 

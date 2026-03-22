@@ -1,6 +1,6 @@
 {
   "name": "claude-channel-wechat",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "WeChat channel for Claude Code — bridges WeChat messages via Tencent iLink Bot API",
   "license": "MIT",
   "type": "module",

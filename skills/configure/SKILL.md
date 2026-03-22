@@ -15,7 +15,7 @@ allowed-tools:
 # /wechat:configure — WeChat Channel Setup
 
 Runs QR code login for the WeChat channel.
-Credentials are stored in `~/.claude/channels/wechat/<path-hash>/accounts.json`, keyed by project directory.
+Credentials are stored in `~/.claude/channels/wechat/accounts.json`.
 
 Arguments passed: `$ARGUMENTS`
 
@@ -27,16 +27,15 @@ Arguments passed: `$ARGUMENTS`
 
 1. **Run login**:
    ```
-   bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts --project-root ${CLAUDE_PROJECT_ROOT}
+   bun ${CLAUDE_PLUGIN_ROOT}/test-login.ts
    ```
 
 2. **After success** — tell the user: *"WeChat connected! Restart Claude Code to activate."*
 
-### `list` — list all accounts for this project
+### `list` — list all accounts
 
-1. Compute path hash from `${CLAUDE_PROJECT_ROOT}`.
-2. Read `~/.claude/channels/wechat/<path-hash>/accounts.json`.
-3. For each account, show:
+1. Read `~/.claude/channels/wechat/accounts.json`.
+2. For each account, show:
    - User ID (key)
    - botId (first 12 chars + `...`)
    - Login time
@@ -44,13 +43,13 @@ Arguments passed: `$ARGUMENTS`
 
 ### `status` — check current account
 
-1. Read `~/.claude/channels/wechat/<path-hash>/accounts.json`.
+1. Read `~/.claude/channels/wechat/accounts.json`.
 2. Show the default account's info (botId, userId, savedAt).
 3. If no accounts.json found, tell user to run `/wechat:configure`.
 
 ### `switch <user_id>` — change default account
 
-1. Read `~/.claude/channels/wechat/<path-hash>/accounts.json`.
+1. Read `~/.claude/channels/wechat/accounts.json`.
 2. Set `default` to `<user_id>`.
 3. Write back. Confirm: *"Default switched. Restart Claude Code to activate."*
 
@@ -61,30 +60,15 @@ Arguments passed: `$ARGUMENTS`
 3. If the removed account was the default, clear the `default` field.
 4. Confirm: *"Logged out. Run /wechat:configure to re-login."*
 
-### `reset` — full reset for this project
+### `reset` — full reset
 
-1. Delete entire `~/.claude/channels/wechat/<path-hash>/` directory.
+1. Delete `~/.claude/channels/wechat/accounts.json` and `sync-buf.txt`.
 2. Confirm: *"Reset complete."*
 
 ---
 
-## How path-hash works
-
-```typescript
-import { createHash } from 'crypto'
-function pathHash(dir: string): string {
-  return createHash('sha256').update(dir).digest('hex').slice(0, 12)
-}
-// pathHash('/home/fish/project-a') → 'a1b2c3d4e5f6'
-```
-
-The project root (`CLAUDE_PROJECT_ROOT`) is hashed to a 12-char hex string. This means:
-- Different projects get separate credential stores
-- No files pollute the project directory
-- Moving a project directory invalidates the hash (re-scan needed)
-
 ## Implementation notes
 
 - The login script (`test-login.ts`) MUST run with `bun`.
-- `--project-root` tells the script which directory to hash.
 - `WECHAT_USER_ID` env var overrides the default account selection at runtime.
+- `WECHAT_STATE_DIR` env var overrides the state directory (default: `~/.claude/channels/wechat`).

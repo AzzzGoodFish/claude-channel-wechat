@@ -92,10 +92,8 @@ Session 过期后需要重新扫码：
 
 ## 状态文件
 
-凭证按项目目录隔离，路径通过 `CLAUDE_PROJECT_ROOT` 的 SHA256 前 12 位哈希决定：
-
 ```
-~/.claude/channels/wechat/<path-hash>/
+~/.claude/channels/wechat/
 ├── accounts.json    # 登录凭证（支持多账号，含 default 字段）
 └── sync-buf.txt     # 消息同步游标（断点续传）
 ```
