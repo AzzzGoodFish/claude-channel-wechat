@@ -32,7 +32,7 @@ claude plugin install wechat@claude-channel-wechat
 **3. 启动**
 
 ```bash
-claude --channels plugin:wechat@claude-channel-wechat
+claude --dangerously-load-development-channels plugin:wechat@claude-channel-wechat
 ```
 
 **4. 扫码连接**
