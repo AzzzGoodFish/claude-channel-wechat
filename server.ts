@@ -40,13 +40,6 @@ function parseAccountName(): string {
 }
 
 const ACCOUNT_NAME = parseAccountName()
-if (!ACCOUNT_NAME) {
-  process.stderr.write('wechat channel: no account configured.\n')
-  process.stderr.write('  Set WECHAT_ACCOUNT env var, or create .wechat-account in your project dir.\n')
-  process.stderr.write('  Run /wechat:configure <name> to set up.\n')
-  // Keep process alive so Claude Code doesn't show error, just wait
-  await new Promise(() => {})
-}
 const ACCOUNTS_ROOT = process.env.WECHAT_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'wechat')
 const STATE_DIR = join(ACCOUNTS_ROOT, ACCOUNT_NAME)
 const ACCOUNT_FILE = join(STATE_DIR, 'account.json')
@@ -592,20 +585,38 @@ process.on('uncaughtException', err => {
 
 // ── Wait for Login ──────────────────────────────────────────────────────────
 
-let account = loadAccount()
+let account: AccountData | null = null
+
+if (!ACCOUNT_NAME) {
+  process.stderr.write('wechat channel: no account configured.\n')
+  process.stderr.write('  Run /wechat:configure <name> to set up.\n')
+  process.stderr.write('  Waiting for .wechat-account file...\n')
+  // Poll until .wechat-account appears or account.json shows up
+  while (!shuttingDown) {
+    const name = parseAccountName()
+    if (name) {
+      // Re-derive STATE_DIR at runtime is tricky, so just exit and let Claude Code restart
+      process.stderr.write(`wechat channel: detected account "${name}", restarting...\n`)
+      process.exit(0)
+    }
+    await new Promise(r => setTimeout(r, 3000))
+  }
+  process.exit(0)
+}
+
+account = loadAccount()
 
 if (!account) {
   process.stderr.write(
-    'wechat channel: no account found. Run /wechat:configure to scan QR code.\n' +
-    'wechat channel: waiting for account.json...\n',
+    `wechat channel [${ACCOUNT_NAME}]: no account.json found. Run /wechat:configure ${ACCOUNT_NAME} to scan QR code.\n` +
+    `wechat channel [${ACCOUNT_NAME}]: waiting for account.json...\n`,
   )
-  // Poll for account.json every 3 seconds until it appears
   while (!account && !shuttingDown) {
     await new Promise(r => setTimeout(r, 3000))
     account = loadAccount()
   }
   if (!account) process.exit(0)
-  process.stderr.write('wechat channel: account.json detected!\n')
+  process.stderr.write(`wechat channel [${ACCOUNT_NAME}]: account.json detected!\n`)
 }
 
 process.stderr.write(`wechat channel [${ACCOUNT_NAME}]: logged in as botId=${account.botId}, owner=${account.userId ?? 'unknown'}\n`)
