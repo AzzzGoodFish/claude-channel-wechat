@@ -25,8 +25,16 @@ function parseAccountName(): string {
   // 1. CLI arg: --account <name>
   const idx = process.argv.indexOf('--account')
   if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  // 2. Env var (set by user or by /wechat:configure)
+  // 2. Env var
   if (process.env.WECHAT_ACCOUNT) return process.env.WECHAT_ACCOUNT
+  // 3. .wechat-account file in project dir (CLAUDE_PROJECT_DIR set by Claude Code)
+  const projectDir = process.env.CLAUDE_PROJECT_DIR
+  if (projectDir) {
+    try {
+      const local = readFileSync(join(projectDir, '.wechat-account'), 'utf8').trim()
+      if (local) return local
+    } catch {}
+  }
   return 'default'
 }
 
